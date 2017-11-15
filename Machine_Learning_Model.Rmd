@@ -1,0 +1,171 @@
+---
+title: "Machine Learning Project"
+author: "Charles Westby"
+date: "11/14/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+#Synopsis
+In this paper we are going to look at data that was collected using a fitbit type device. In the study subjects were asked to perform barbell lifts correctly and four ways incorrectly. These were different techniques were recorded in the variable class and labeled "A", "B", "C", "D", and "E". We are going to try to create a machine learning model that will use the data collected from the device to correctly predict which way the subject performed the exercise. We will build two different models, then choose the best one to predict classes based on a separate set of data.
+
+#Processing Data
+##Loading Libraries, Setting Seed and Importing Data
+
+Here we set the seed for the project. We did this to make sure that the model is reproducible. We then loaded libraries that we would use to manipulate, graph and create machine learning algorithms for the data. We also stored the data in the variables `data`. The data that we will use at the end of the paper to test our model is stored in the variable `test_test`.
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+set.seed(628436)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(caret)
+
+data <- read.csv("traindata.csv", stringsAsFactors = FALSE)
+test_test <- read.csv("testdata.csv", stringsAsFactors = FALSE)
+```
+
+##Exploring the Data
+###Partitioning the Data
+
+Here we begin exploratory analysis on the data. First we break the data into two parts `train` and `test`. The `train` set contains 80% of the data and the `test` set contains the other 20%. The model will be built on the `train` set. We will then check the accuracy of our model by trying to predict the `classe` variable in the test set. We check the dimensions of both the `train` and `test` variables.
+
+```{r echo=TRUE}
+inTrain <- createDataPartition(y = data$classe, p = 0.8, list = FALSE)
+train <- data[inTrain, ]
+test <- data[-inTrain, ]
+dim(train)
+dim(test)
+```
+
+###Removing Near Zero Values
+
+We see that this is a large dataset. So we decide to remove variables that have near zero variance. These are variables that are pretty much uniform and will not have much effect on the model.
+
+```{r echo=TRUE}
+nzv <- nearZeroVar(test_test, saveMetrics=TRUE)
+train <- train[,nzv$nzv==FALSE]
+test <- test[,nzv$nzv==FALSE]
+```
+
+###Glimpsing Variables
+```{r echo=TRUE}
+glimpse(train)
+```
+
+###Removing Unnecessary Variables
+
+After taking a look at the variables we decide to remove the first five column of the data, which contain ID type variables. These include the variables `X`, which just numbers all the observations. We also remove `user_name`, which records the name of the person performing the test. We also remove `raw_timestamp_part_1`, `raw_timestamp_part_2`, and `cvtd_timestamp`, which are variables that record the time and date the activities were performed. We do these transformations to both the `train` variable and the `test` variable because whatever you do to `train` set you have to do to the `test` set.  
+
+```{r echo=TRUE}
+train <- select(train, -(1:5))
+test <- select(test, -(1:5))
+```
+
+###Changing classe to a Factor Variable
+
+We then change the `classe` variable from a character variable to a factor variable.
+
+```{r echo=TRUE}
+train$classe <- as.factor(train$classe)
+test$classe <- as.factor(test$classe)
+```
+
+We check the dimesions of the data frame again.
+
+```{r echo=TRUE}
+dim(train)
+dim(test)
+```
+
+
+#Models
+
+We now have the manipulated the data so that we can use it to build our models.  
+
+##Classification Tree Model
+###Building Model
+
+We build the model using the folowing code. It is a Classification Tree model. We use knn imputing to impute any missing values. We also use ten fold cross-validation. So during modeling our dataset is split into ten folds. These folds represent 10 test sets, containing one instance of our original data selected randomly. The out of sample error is then used for each test set and applied to the overall model. This method should reduce the out of sample error on the whole model. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model_rpart <- train(classe ~ ., train, method = "rpart", preProcess = "knnImpute", trControl = trainControl(method = "cv", number = 10))
+model_rpart
+```
+
+When looking at this model we see that it used 10 fold cross-validation as its resampling too. The accuracy that it predicts to have is about 53.21%.
+
+###Testing Model
+
+We then use the predict function to test the model on the `test` split of the dataset. We use a Confusion Matrix to compare our predictions with the actual values of `classe` in the test set. 
+
+```{r echo=TRUE}
+predictions_rpart <- predict(model_rpart, test)
+confusionMatrix(predictions_rpart, test$classe)
+```
+
+From the confusion matrix we see that the predictions were 49.58% accurate. These predictions are within the 95% confidence interval that says that his model will accurately predict the `classe` variable. According to this confidence interval, with about 95% certainty we can say that this model will predict with between 48% and 51.16% percent accuracy. 
+
+##Random Forrest Model
+
+Next we build a random forest model
+
+###Building Model
+
+We build the Random Forrest model with the following code. Again we use 10 fold cross-validation and impute missing values with knn Imputation.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+model_rf <- train(classe ~ ., train, method = "ranger", preProcess = "knnImpute", trControl = trainControl(method = "cv", number = 10))
+model_rf
+```
+
+This model shows that it used ten fold cross validation as its sampling tool. It predicts that it will be about 99.54% accurate. 
+
+###Testing Model
+
+We then test the model with the following code and compare our predicted outcomes with the actual outcomes using the Confusion Matrix.
+
+```{r echo=TRUE, warning=FALSE, message=FALSE}
+predictions_rf <- predict(model_rf, test)
+confusionMatrix(predictions_rf, test$classe)
+```
+
+The Confusion Matrix shows that this model predicted with 99.95% accuracy. There was only one time where the predicted outcome and the actual outcome differed. According to the 95% confidence interval, this model will predict with 99.82% to 99.99% accuracy about 95% of the time. 
+
+##GBM Model
+
+We then build a GBM model.
+
+###Building Model
+
+We build the GBM model with the following code. Again we use 10 fold-cross validation and knn Imputation. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model_gbm <- train(classe ~ ., train, method = "gbm", preProcess = "knnImpute", trControl = trainControl(method = "cv", number = 10))
+model_gbm
+```
+ 
+This model shows that it used ten fold cross validation to resample. It's difficult to predict the accuracy, but we will test it on our test set and determine accuracy.
+
+###Testing Model
+
+We test the model with the following code and compare our predicted outcomes with the actual outcomes using a confusion matrix.
+
+```{r echo=TRUE}
+predictions_gbm <- predict(model_gbm, test)
+confusionMatrix(predictions_gbm, test$classe)
+```
+
+This Confusion Matrix shows that the GBM model predicted with 99.34% accuracy. According to the 95% confidence interval, this model will predict with between 99.03% and 99.57% accuracy about 95% of the time.  
+
+#Picking and Testing Final Model
+
+The GBM and the Random Forrest models both are about 99% accurate. We use both to predict the answers to the Courera quiz. They yield the same answers. When used to answer the questions to the quiz we received 100%. These models are both accurate predictors for the `classe` variable. Although they are highly accurate, they are difficult to interpret. They both use very sophisticated algorithms to build their models.
+
+```{r echo=TRUE}
+predictions_test_rf <- predict(model_rf, test_test)
+predictions_test_gbm <- predict(model_gbm, test_test)
+data.frame("Random Forrest Predictions" = predictions_test_rf, 
+           "GBM Predictions" = predictions_test_gbm)
+```
+
